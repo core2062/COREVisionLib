@@ -1,5 +1,4 @@
 #include "CORECapture.h"
-#include "opencv2/opencv.hpp"
 
 using namespace CORE;
 using namespace cv;
@@ -23,7 +22,7 @@ void CORECapture::Init() {
     m_runCaptureThread = true;
     m_newFrameReady = false;
     m_isOpen = false;
-    m_frame.first = Mat (m_settings.resolution[0], m_settings.resolution[1], CV_8UC1);
+    m_frame.first = Mat (m_settings.resolution[1], m_settings.resolution[0], CV_8UC1);
     m_frame.first.setTo(Scalar(255));
     m_frame.second = time(0);
     if(!m_manualImageMode) {
@@ -51,12 +50,24 @@ CORECapture::CORECapture(int deviceNumber, int width, int height, bool manualIma
 }
 
 pair<Mat, time_t> CORECapture::GetFrame() {
+    if(m_waitForNew) {
+        while(!m_newFrameReady) {
+            //TODO: Wait here
+        }
+    }
     m_newFrameReady = false;
-    return m_frame;
+    camera.lock();
+    auto newFrame = m_frame;
+    camera.unlock();
+    return newFrame;
 }
 
 bool CORECapture::NewFrameReady() {
     return m_newFrameReady;
+}
+
+void CORECapture::WaitForNewFrame(bool wait) {
+    m_waitForNew = wait;
 }
 
 bool CORECapture::SetFPS(int FPS) {
@@ -101,8 +112,8 @@ bool CORECapture::SetBrightness(int brightness) {
     return m_camera->get(CAP_PROP_BRIGHTNESS) == m_settings.brightness;
 }
 
-bool CORECapture::SetContrast(int constrast) {
-    m_settings.contrast = constrast;
+bool CORECapture::SetContrast(int contrast) {
+    m_settings.contrast = contrast;
     m_camera->set(CAP_PROP_CONTRAST, m_settings.contrast);
     return m_camera->get(CAP_PROP_CONTRAST) == m_settings.contrast;
 }
@@ -182,27 +193,27 @@ double CORECapture::GetFPS() {
     return m_camera->get(CAP_PROP_FPS);
 }
 
-int CORECapture::GetResolutionWidth() {
+double CORECapture::GetResolutionWidth() {
     return m_camera->get(CAP_PROP_FRAME_WIDTH);
 }
 
-int CORECapture::GetResolutionHeight() {
+double CORECapture::GetResolutionHeight() {
     return m_camera->get(CAP_PROP_FRAME_HEIGHT);
 }
 
-int CORECapture::GetBrightness() {
+double CORECapture::GetBrightness() {
     return m_camera->get(CAP_PROP_BRIGHTNESS);
 }
 
-int CORECapture::GetContrast() {
+double CORECapture::GetContrast() {
     return m_camera->get(CAP_PROP_CONTRAST);
 }
 
-int CORECapture::GetSaturation() {
+double CORECapture::GetSaturation() {
     return m_camera->get(CAP_PROP_SATURATION);
 }
 
-int CORECapture::GetExposure() {
+double CORECapture::GetExposure() {
     return m_camera->get(CAP_PROP_EXPOSURE);
 }
 
@@ -247,14 +258,16 @@ void CORECapture::InitializeCamera(int deviceNumber) {
 }
 
 void CORECapture::CameraCaptureThread() {
+    Mat frame;
     while(m_runCaptureThread) {
-        Mat frame;
         *m_camera >> frame;
+        camera.lock();
         m_frame.second = time(0);
         if(m_useCrop)
             m_frame.first = frame(*m_crop);
         else
             m_frame.first = frame;
+        camera.unlock();
         m_newFrameReady = true;
     }
     m_isOpen = false;

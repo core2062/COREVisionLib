@@ -3,6 +3,7 @@
 #include "opencv2/opencv.hpp"
 #include <memory>
 #include <thread>
+#include <mutex>
 
 using namespace cv;
 using namespace std;
@@ -31,25 +32,26 @@ namespace CORE {
         virtual ~CORECapture();
         pair<Mat, time_t> GetFrame();
         bool NewFrameReady();
+        void WaitForNewFrame(bool wait = true);
         bool SetFPS(int FPS);
         bool SetResolution(int resolution[2]);
         bool SetResolution(int width, int height);
         bool SetResolutionWidth(int width);
         bool SetResolutionHeight(int height);
         bool SetBrightness(int brightness);
-        bool SetContrast(int constrast);
+        bool SetContrast(int contrast);
         bool SetSaturation(int saturation);
         bool SetExposure(int exposure);
         bool SetCameraSettings(captureSettings settings);
         void SetCrop(int X, int Y, int width, int height);
         void DisableCrop(bool disableCrop = true);
         double GetFPS();
-        int GetResolutionWidth();
-        int GetResolutionHeight();
-        int GetBrightness();
-        int GetContrast();
-        int GetSaturation();
-        int GetExposure();
+        double GetResolutionWidth();
+        double GetResolutionHeight();
+        double GetBrightness();
+        double GetContrast();
+        double GetSaturation();
+        double GetExposure();
         captureSettings GetCameraSettings();
         void UseFileInput(bool manualImageMode);
         void SetFileInputLocation(String path, fileInputType inputType);
@@ -60,9 +62,10 @@ namespace CORE {
         captureSettings m_settings;
         String m_inputFilePath;
         fileInputType m_inputType;
+        mutex camera;
         pair<Mat, time_t> m_frame;
         Rect * m_crop;
-        bool m_runCaptureThread, m_newFrameReady, m_isOpen, m_useCrop, m_manualImageMode;
+        bool m_runCaptureThread, m_newFrameReady, m_isOpen, m_useCrop, m_manualImageMode, m_waitForNew;
         int m_deviceNumber;
         thread m_initCameraThread, m_cameraCaptureThread;
         void InitializeCamera(int deviceNumber);
