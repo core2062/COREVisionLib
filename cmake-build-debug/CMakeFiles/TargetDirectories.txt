@@ -1,0 +1,3 @@
+/mnt/Programming/git/COREVisionLib/cmake-build-debug/CMakeFiles/edit_cache.dir
+/mnt/Programming/git/COREVisionLib/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/mnt/Programming/git/COREVisionLib/cmake-build-debug/CMakeFiles/COREVisionLib.dir
