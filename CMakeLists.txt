@@ -18,7 +18,7 @@ else()
     link_directories(${PROJECT_SOURCE_DIR}/3rdparty/NetworkTables/Linux/amd64)
 endif()
 
-set(SOURCE_FILES main.cpp #[[src/CORECapture.cpp src/CORECapture.h]])
+set(SOURCE_FILES ../src/main.cpp #[[src/CORECapture.cpp src/CORECapture.h]])
 add_executable(COREVisionLib ${SOURCE_FILES})
 
 target_link_libraries(COREVisionLib cscore.so ntcore.so ${OpenCV_LIBS})
