@@ -1,6 +1,7 @@
 #pragma once
 
 #include "opencv2/opencv.hpp"
+#include "CORETimer.h"
 #include <memory>
 #include <thread>
 #include <math.h>

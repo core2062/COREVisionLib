@@ -271,7 +271,10 @@ void CORECapture::Close() {
 
 void CORECapture::InitializeCamera(int deviceNumber) {
     m_camera = new VideoCapture(deviceNumber);
-    while(!m_camera->isOpened()) {
+    CORETimer timeout;
+    timeout.Reset();
+    timeout.Start();
+    while(!m_camera->isOpened() && timeout.Get() < 3) {
         //TODO: Possibly sleep here?
     }
     cout << "Camera Opened" << endl;
@@ -280,7 +283,9 @@ void CORECapture::InitializeCamera(int deviceNumber) {
         cout << "Error Setting Camera Settings!" << endl;
     }
     cout << "Camera Initialized!" << endl;
-    while(!m_camera->isOpened()) {
+    timeout.Reset();
+    timeout.Start();
+    while(!m_camera->isOpened() && timeout.Get() < 3) {
         //TODO: Sleep?
     }
     m_isOpen = true;
