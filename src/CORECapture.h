@@ -3,6 +3,8 @@
 #include "opencv2/opencv.hpp"
 #include <memory>
 #include <thread>
+#include <math.h>
+#include <atomic>
 #include <mutex>
 
 using namespace cv;
@@ -46,6 +48,7 @@ namespace CORE {
         void SetCrop(int X, int Y, int width, int height);
         void DisableCrop(bool disableCrop = true);
         double GetFPS();
+        double GetRealFPS();
         double GetResolutionWidth();
         double GetResolutionHeight();
         double GetBrightness();
@@ -63,7 +66,10 @@ namespace CORE {
         String m_inputFilePath;
         fileInputType m_inputType;
         mutex camera;
+        time_t m_lastTimestamp;
+        atomic<double> m_fps;
         pair<Mat, time_t> m_frame;
+        int m_frameCount;
         Rect * m_crop;
         bool m_runCaptureThread, m_newFrameReady, m_isOpen, m_useCrop, m_manualImageMode, m_waitForNew;
         int m_deviceNumber;

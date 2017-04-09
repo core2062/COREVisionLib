@@ -21,9 +21,12 @@ CORECapture::captureSettings::captureSettings(int *_resolution, int _FPS, int _b
 void CORECapture::Init() {
     m_runCaptureThread = true;
     m_newFrameReady = false;
+    m_useCrop = false;
     m_isOpen = false;
-    m_frame.first = Mat (m_settings.resolution[1], m_settings.resolution[0], CV_8UC1);
+    m_frameCount = 0;
+    m_frame.first = Mat(m_settings.resolution[1], m_settings.resolution[0], CV_8UC1);
     m_frame.first.setTo(Scalar(255));
+    m_lastTimestamp = time(0);
     m_frame.second = time(0);
     if(!m_manualImageMode) {
         cout << "Initializing Camera" << endl;
@@ -50,16 +53,27 @@ CORECapture::CORECapture(int deviceNumber, int width, int height, bool manualIma
 }
 
 pair<Mat, time_t> CORECapture::GetFrame() {
-    if(m_waitForNew) {
-        while(!m_newFrameReady) {
-            //TODO: Wait here
+    if(m_manualImageMode) {
+        auto image = imread(m_inputFilePath, CV_LOAD_IMAGE_COLOR);
+        if(!image.data) {
+            cout << "Error reading manual image!" << endl;
         }
+        pair<Mat, time_t> frame;
+        frame.first = image;
+        frame.second = time(0);
+        return frame;
+    } else {
+        if(m_waitForNew) {
+            while(!m_newFrameReady) {
+                //TODO: Something here
+            }
+        }
+        m_newFrameReady = false;
+        camera.lock();
+        auto frame = m_frame;
+        camera.unlock();
+        return frame;
     }
-    m_newFrameReady = false;
-    camera.lock();
-    auto newFrame = m_frame;
-    camera.unlock();
-    return newFrame;
 }
 
 bool CORECapture::NewFrameReady() {
@@ -108,8 +122,12 @@ bool CORECapture::SetResolutionHeight(int resolutionY) {
 
 bool CORECapture::SetBrightness(int brightness) {
     m_settings.brightness = brightness;
-    m_camera->set(CAP_PROP_BRIGHTNESS, m_settings.brightness);
-    return m_camera->get(CAP_PROP_BRIGHTNESS) == m_settings.brightness;
+    if(!m_manualImageMode) {
+        m_camera->set(CAP_PROP_BRIGHTNESS, m_settings.brightness);
+        return m_camera->get(CAP_PROP_BRIGHTNESS) == m_settings.brightness;
+    } else {
+        return true;
+    }
 }
 
 bool CORECapture::SetContrast(int contrast) {
@@ -138,42 +156,42 @@ bool CORECapture::SetCameraSettings(CORECapture::captureSettings settings) {
         m_camera->set(CAP_PROP_FRAME_HEIGHT, m_settings.resolution[1]);
         if(m_camera->get(CAP_PROP_FRAME_WIDTH) != m_settings.resolution[0]
            || m_camera->get(CAP_PROP_FRAME_HEIGHT) != m_settings.resolution[1]) {
-            //TODO: ERROR
+            cout << "Error setting resolution!" << endl;
             error = true;
         }
     }
     if(m_settings.FPS != -1) {
         m_camera->set(CAP_PROP_FPS, m_settings.FPS);
         if(m_camera->get(CAP_PROP_FPS) != m_settings.FPS) {
-            //TODO: ERROR
+            cout << "Error setting FPS!" << endl;
             error = true;
         }
     }
     if(m_settings.brightness != -1) {
         m_camera->set(CAP_PROP_BRIGHTNESS, m_settings.brightness);
         if(m_camera->get(CAP_PROP_BRIGHTNESS) != m_settings.brightness) {
-            //TODO: ERROR
+            cout << "Error setting brightness!" << endl;
             error = true;
         }
     }
     if(m_settings.contrast != -1) {
         m_camera->set(CAP_PROP_CONTRAST, m_settings.contrast);
         if(m_camera->get(CAP_PROP_CONTRAST) != m_settings.contrast) {
-            //TODO: ERROR
+            cout << "Error setting contrast!" << endl;
             error = true;
         }
     }
     if(m_settings.saturation != -1) {
         m_camera->set(CAP_PROP_SATURATION, m_settings.saturation);
         if(m_camera->get(CAP_PROP_SATURATION) != m_settings.saturation) {
-            //TODO: ERROR
+            cout << "Error setting saturation!" << endl;
             error = true;
         }
     }
     if(m_settings.exposure != -1) {
         m_camera->set(CAP_PROP_EXPOSURE, m_settings.exposure);
         if(m_camera->get(CAP_PROP_EXPOSURE) != m_settings.exposure) {
-            //TODO: ERROR
+            cout << "Error setting exposure!" << endl;
             error = true;
         }
     }
@@ -192,6 +210,18 @@ void CORECapture::DisableCrop(bool disableCrop) {
 double CORECapture::GetFPS() {
     return m_camera->get(CAP_PROP_FPS);
 }
+
+double CORECapture::GetRealFPS() {
+    return m_fps;
+    /*camera.lock();
+    auto currentTimestamp = m_frame.second;
+    auto lastTimestamp = m_lastTimestamp;
+    int frames = m_frameCount;
+    m_frameCount = 0;
+    camera.unlock();
+    return ((double)frames / difftime(currentTimestamp, lastTimestamp));*/
+}
+
 
 double CORECapture::GetResolutionWidth() {
     return m_camera->get(CAP_PROP_FRAME_WIDTH);
@@ -222,11 +252,12 @@ CORECapture::captureSettings CORECapture::GetCameraSettings() {
 }
 
 void CORECapture::UseFileInput(bool manualImageMode) {
-
+    m_manualImageMode = manualImageMode;
 }
 
 void CORECapture::SetFileInputLocation(String path, fileInputType inputType) {
-
+    m_inputFilePath = path;
+    m_inputType = inputType;
 }
 
 bool CORECapture::IsOpen() {
@@ -253,6 +284,7 @@ void CORECapture::InitializeCamera(int deviceNumber) {
         //TODO: Sleep?
     }
     m_isOpen = true;
+    m_runCaptureThread = true;
     m_cameraCaptureThread = thread(&CORECapture::CameraCaptureThread, this);
     cout << "Started Capture" << endl;
 }
@@ -260,15 +292,27 @@ void CORECapture::InitializeCamera(int deviceNumber) {
 void CORECapture::CameraCaptureThread() {
     Mat frame;
     while(m_runCaptureThread) {
-        *m_camera >> frame;
-        camera.lock();
-        m_frame.second = time(0);
-        if(m_useCrop)
-            m_frame.first = frame(*m_crop);
-        else
+        if(!m_manualImageMode) {
+            *m_camera >> frame;
+            auto currentTimestamp = time(0);
+            if(m_useCrop)
+                frame = frame(*m_crop);
+            else
+                frame = frame;
+            camera.lock();
             m_frame.first = frame;
-        camera.unlock();
-        m_newFrameReady = true;
+            m_frame.second = currentTimestamp;
+            camera.unlock();
+            double deltaTime = difftime(currentTimestamp, m_lastTimestamp);
+            if(deltaTime >= 1) {
+                m_fps = ((double) m_frameCount) / deltaTime;
+                m_lastTimestamp = currentTimestamp;
+                m_frameCount = 0;
+            } else {
+                m_frameCount++;
+            }
+            m_newFrameReady = true;
+        }
     }
     m_isOpen = false;
 }
